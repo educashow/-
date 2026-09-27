@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collocation Quest</title>
+    <style>
+        :root {
+            --bg-color: #0F172A;
+            --text-main: #F8FAFC;
+            --accent-blue: #38BDF8;
+            --accent-gold: #F59E0B;
+            --panel-bg: #1E293B;
+            --input-bg: #0B1120;
+            --memo-color: #10B981;
+        }
+
+        body { background-color: var(--bg-color); color: var(--text-main); font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 0; display: flex; justify-content: center; }
+        #app-container { width: 100%; max-width: 480px; min-height: 100vh; background-color: var(--bg-color); position: relative; box-shadow: 0 0 20px rgba(0,0,0,0.5); padding-bottom: 70px; }
+        header { padding: 15px; text-align: center; border-bottom: 2px solid var(--panel-bg); background-color: var(--bg-color); position: sticky; top: 0; z-index: 10; }
+        h1 { color: var(--accent-blue); font-size: 20px; margin: 0; letter-spacing: 1px; }
+
+        .screen { display: none; padding: 20px; animation: fadeIn 0.3s ease-in-out; }
+        .screen.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* --- ステータス画面（ホーム）関連 --- */
+        .status-box { background-color: var(--panel-bg); border: 1px solid #334155; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+        .level-text { font-size: 20px; font-weight: bold; color: var(--accent-gold); }
+        .title-text { font-size: 14px; color: var(--accent-blue); margin-bottom: 5px; font-weight: bold; }
+        .exp-bar-bg { background-color: #000; height: 10px; border-radius: 5px; margin-top: 10px; overflow: hidden; }
+        .exp-bar-fill { background-color: var(--accent-gold); height: 100%; width: 30%; transition: width 0.5s ease-out; }
+
+        /* 称号ロードマップ */
+        .roadmap-container { background-color: var(--panel-bg); border: 1px solid #334155; border-radius: 8px; padding: 15px; margin-bottom: 20px; max-height: 250px; overflow-y: auto; }
+        .roadmap-container::-webkit-scrollbar { width: 6px; }
+        .roadmap-container::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        .title-item { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #334155; font-size: 14px; }
+        .title-item:last-child { border-bottom: none; }
+        .title-item.locked { opacity: 0.4; }
+        .title-item.current { color: var(--accent-gold); font-weight: bold; background-color: rgba(245, 158, 11, 0.1); border-radius: 4px; padding: 12px 8px; margin: 0 -8px; }
+        .title-level { width: 50px; color: var(--accent-blue); font-weight: bold; }
+        .title-name { flex: 1; }
+        .title-status { width: 30px; text-align: right; }
+
+        /* データ管理（リセット） */
+        .settings-container { border: 1px dashed #334155; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+        .btn-reset { width: 100%; padding: 12px; background: none; color: #F43F5E; border: 1px solid #F43F5E; border-radius: 6px; font-size: 14px; cursor: pointer; transition: 0.2s; font-weight: bold; }
+        .btn-reset:hover { background-color: rgba(244, 63, 94, 0.1); }
+
+        /* --- 入力・検索・リスト画面関連 --- */
+        .input-group { margin-bottom: 15px; }
+        .input-group label { display: block; margin-bottom: 5px; color: var(--accent-blue); font-size: 14px; font-weight: bold; }
+        input[type="text"] { width: 100%; padding: 12px; box-sizing: border-box; background-color: var(--input-bg); color: var(--text-main); border: 1px solid #334155; border-radius: 6px; font-size: 16px; transition: 0.2s; }
+        input[type="text"]:focus { outline: none; border-color: var(--accent-gold); box-shadow: 0 0 5px rgba(245, 158, 11, 0.3); }
+        .btn-submit { width: 100%; padding: 15px; background-color: var(--panel-bg); color: var(--accent-gold); border: 2px solid var(--accent-gold); border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.2s; margin-top: 10px; }
+        .btn-submit:active { transform: scale(0.98); background-color: var(--accent-gold); color: var(--bg-color); }
+        #save-message { display: none; color: var(--accent-gold); text-align: center; margin-top: 15px; font-weight: bold; }
+        .suggest-chip { background-color: #334155; padding: 8px 12px; border-radius: 20px; font-size: 14px; cursor: pointer; transition: 0.2s; border: 1px solid #475569; }
+        .suggest-chip:hover { background-color: var(--accent-blue); border-color: var(--accent-blue); }
+
+        .list-card { background-color: var(--panel-bg); border-left: 4px solid var(--accent-blue); padding: 15px; border-radius: 6px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 5px; }
+        .list-card.is-memorized { opacity: 0.5; border-left-color: #475569; }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+        .list-en { font-size: 18px; font-weight: bold; color: #FFF; }
+        .list-ja { font-size: 14px; color: #94A3B8; }
+        .btn-memorize { background: none; border: 1px solid #64748B; color: #94A3B8; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-memorize.active { background-color: var(--memo-color); border-color: var(--memo-color); color: #FFF; }
+
+        /* --- テスト画面関連 --- */
+        .test-question { font-size: 22px; font-weight: bold; text-align: center; margin: 20px 0 30px; color: var(--text-main); }
+        .answer-slots { display: flex; justify-content: center; gap: 10px; margin-bottom: 30px; flex-wrap: wrap; }
+        .slot { min-width: 60px; height: 40px; border-bottom: 2px solid var(--accent-blue); display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: bold; color: var(--accent-gold); cursor: pointer; }
+        .options-area { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        .word-panel { background-color: var(--panel-bg); border: 2px solid #475569; padding: 10px 15px; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; transition: all 0.1s; }
+        .word-panel:active { transform: scale(0.95); }
+        .word-panel.hidden { visibility: hidden; }
+        .test-feedback { text-align: center; font-size: 20px; font-weight: bold; margin-top: 10px; min-height: 50px; }
+        .feedback-correct { color: var(--accent-gold); animation: pop 0.3s ease-out; display: inline-block; }
+        .feedback-incorrect { color: #F43F5E; }
+        @keyframes pop { 0% { transform: scale(0.5); } 80% { transform: scale(1.2); } 100% { transform: scale(1); } }
+        .next-btn { display: none; width: 100%; padding: 15px; background-color: var(--accent-blue); color: var(--bg-color); border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 20px; }
+        
+        /* モーダル */
+        #level-up-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: var(--bg-color); border: 2px solid var(--accent-gold); padding: 30px; border-radius: 12px; z-index: 200; text-align: center; box-shadow: 0 0 40px rgba(245, 158, 11, 0.4); width: 80%; max-width: 320px; }
+        #level-up-modal h2 { color: var(--accent-gold); margin-top: 0; font-size: 28px; }
+        #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 150; }
+        
+        /* ナビゲーション */
+        nav { position: fixed; bottom: 0; width: 100%; max-width: 480px; display: flex; background-color: var(--bg-color); border-top: 1px solid #334155; z-index: 100; }
+        .nav-btn { flex: 1; padding: 15px 0; background: none; border: none; color: #64748B; font-size: 12px; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+        .nav-btn.active { color: var(--accent-gold); font-weight: bold; }
+        .nav-icon { font-size: 20px; }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <header><h1>Collocation Quest</h1></header>
+
+        <!-- 【1】ステータス画面 -->
+        <div id="screen-home" class="screen active">
+            <!-- 現在のステータス -->
+            <div class="status-box">
+                <div class="title-text" id="display-title">称号: 駆け出しの学習者</div>
+                <div class="level-text" id="display-level">Lv. 1</div>
+                <div style="margin-top: 5px; font-size: 14px;" id="display-exp">EXP: 0 / 100</div>
+                <div class="exp-bar-bg"><div class="exp-bar-fill" id="display-exp-bar"></div></div>
+            </div>
+
+            <!-- 称号ロードマップ -->
+            <div class="roadmap-container">
+                <h3 style="color: var(--accent-blue); margin-top:0; font-size:16px;">🏆 称号ロードマップ</h3>
+                <div id="title-roadmap-list"></div>
+            </div>
+
+            <!-- データ管理（リセット機能） -->
+            <div class="settings-container">
+                <h3 style="color: #64748B; margin-top:0; font-size:14px; text-align:center;">⚙️ データ管理</h3>
+                <button class="btn-reset" onclick="resetProgress()">レベル・経験値のみリセット</button>
+                <button class="btn-reset" style="margin-top:10px;" onclick="resetAllData()">全データを初期化（単語も消去）</button>
+            </div>
+        </div>
+
+        <!-- 【2】ストック（探索＆調達）画面 -->
+        <div id="screen-stock" class="screen">
+            <h2 style="color: var(--accent-blue); font-size: 18px; text-align: center;">➕ 探索と調達</h2>
+            
+            <div style="background-color: var(--panel-bg); padding: 15px; border-radius: 8px; border: 1px dashed var(--accent-gold); margin-bottom: 25px;">
+                <label style="color:var(--accent-gold); font-size:12px; font-weight:bold;">💡 単語からコロケーションを探す</label>
+                <div style="display:flex; gap:8px; margin-top:8px;">
+                    <input type="text" id="search-suggest-input" placeholder="例: coffee, idea, water" style="flex:1;">
+                    <button onclick="suggestCollocations()" style="background:var(--accent-blue); color:#fff; border:none; padding:0 15px; border-radius:6px; font-weight:bold; cursor:pointer;">検索</button>
+                </div>
+                <div id="suggest-results" style="margin-top: 12px; display:flex; flex-wrap:wrap; gap:8px;"></div>
+            </div>
+
+            <div class="input-group">
+                <label>英語コロケーション</label>
+                <input type="text" id="input-en" placeholder="例: make a decision" autocomplete="off">
+            </div>
+            <div class="input-group">
+                <label>日本語訳</label>
+                <input type="text" id="input-ja" placeholder="例: 決断を下す" autocomplete="off">
+            </div>
+            <button class="btn-submit" onclick="saveCollocation()">ストックする（+10 EXP）</button>
+            <div id="save-message">✨ アイテムを獲得しました！</div>
+        </div>
+
+        <!-- 【3】リスト画面 -->
+        <div id="screen-list" class="screen">
+            <h2 style="color: var(--accent-blue); font-size: 18px; text-align: center;">📚 アイテム図鑑</h2>
+            <input type="text" id="filter-list-input" placeholder="🔍 図鑑内を検索 (英語 / 日本語)" onkeyup="renderList()" style="margin-bottom:15px;">
+            <div id="collocation-list"></div>
+        </div>
+
+        <!-- 【4】テスト画面 -->
+        <div id="screen-test" class="screen">
+            <h2 style="color: var(--accent-gold); font-size: 18px; text-align: center;">⚔️ バトル</h2>
+            <div id="test-container">
+                <div class="test-question" id="test-question-text"></div>
+                <div class="answer-slots" id="test-slots"></div>
+                <div class="options-area" id="test-options"></div>
+                <div class="test-feedback" id="test-feedback-msg"></div>
+                <button class="next-btn" id="test-next-btn" onclick="startTest()">次の敵（問題）へ</button>
+            </div>
+            <div id="test-empty-msg" style="display:none; text-align:center; color: #94A3B8;">データがありません。<br>まずは単語をストックしましょう！</div>
+        </div>
+
+        <!-- ナビゲーション（ラベルを「ステータス」に変更） -->
+        <nav>
+            <button class="nav-btn active" onclick="changeScreen('home', this)"><span class="nav-icon">📊</span><span>ステータス</span></button>
+            <button class="nav-btn" onclick="changeScreen('stock', this)"><span class="nav-icon">➕</span><span>調達</span></button>
+            <button class="nav-btn" onclick="changeScreen('list', this)"><span class="nav-icon">📚</span><span>図鑑</span></button>
+            <button class="nav-btn" onclick="changeScreen('test', this)"><span class="nav-icon">⚔️</span><span>テスト</span></button>
+        </nav>
+    </div>
+
+    <!-- レベルアップモーダル -->
+    <div id="modal-overlay"></div>
+    <div id="level-up-modal">
+        <h2>🎉 LEVEL UP!</h2>
+        <p style="font-size: 20px;">Lv. <span id="modal-level-text" style="color:var(--accent-gold); font-weight:bold;"></span> に上がった！</p>
+        <p id="modal-title-text" style="color: var(--accent-blue); font-weight: bold; margin-bottom: 25px;"></p>
+        <button class="btn-submit" onclick="closeLevelUpModal()">確認</button>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'colloQuestData';
+        let userData = {};
+
+        // ★ Lv.100 までの称号リスト
+        const TITLE_RANKS = [
+            { level: 1, name: "駆け出しの学習者" },
+            { level: 3, name: "見習い冒険者" },
+            { level: 5, name: "探求の歩み" },
+            { level: 10, name: "言葉の魔術師" },
+            { level: 15, name: "熟練のストッカー" },
+            { level: 20, name: "コロケーションマスター" },
+            { level: 30, name: "英語脳の覚醒者" },
+            { level: 40, name: "流暢な語り手" },
+            { level: 50, name: "伝説の翻訳家" },
+            { level: 60, name: "ネイティブの領域" },
+            { level: 80, name: "言葉の支配者" },
+            { level: 100, name: "コロケーションの神" }
+        ];
+
+        const initialCollocations = [
+            { id: 1, english: ["make", "time"], japanese: "時間を割く（作る）", dummies: ["take", "build", "get", "do", "have"], category: "Time", memorized: false },
+            { id: 2, english: ["make", "a", "mistake"], japanese: "ミスをする", dummies: ["do", "take", "have", "the", "put"], category: "Mistake", memorized: false },
+            { id: 3, english: ["pay", "attention"], japanese: "注意を払う", dummies: ["give", "put", "make", "take", "catch"], category: "Attention", memorized: false }
+        ];
+
+        function initApp() {
+            const savedData = localStorage.getItem(STORAGE_KEY);
+            if (savedData) { 
+                userData = JSON.parse(savedData); 
+            } else { 
+                // 初期データはディープコピーして参照を切る
+                userData = { level: 1, exp: 0, maxExp: 100, collocations: JSON.parse(JSON.stringify(initialCollocations)) }; 
+                saveData(); 
+            }
+            updateHomeStatus();
+        }
+
+        function saveData() { localStorage.setItem(STORAGE_KEY, JSON.stringify(userData)); }
+        
+        function getCurrentTitle(level) {
+            let currentTitle = TITLE_RANKS[0].name;
+            for(let i = 0; i < TITLE_RANKS.length; i++) { if(level >= TITLE_RANKS[i].level) currentTitle = TITLE_RANKS[i].name; }
+            return currentTitle;
+        }
+
+        // === 1. ステータス・称号ロードマップの描画 ===
+        function updateHomeStatus() {
+            document.getElementById('display-level').innerText = `Lv. ${userData.level}`;
+            document.getElementById('display-title').innerText = `称号: ${getCurrentTitle(userData.level)}`;
+            document.getElementById('display-exp').innerText = `EXP: ${userData.exp} / ${userData.maxExp}`;
+            document.getElementById('display-exp-bar').style.width = `${(userData.exp / userData.maxExp) * 100}%`;
+            
+            renderTitleRoadmap(); // ロードマップも一緒に更新
+        }
+
+        function renderTitleRoadmap() {
+            const container = document.getElementById('title-roadmap-list');
+            container.innerHTML = '';
+            
+            const currentLevel = userData.level;
+            const currentTitleName = getCurrentTitle(currentLevel);
+            
+            TITLE_RANKS.forEach(rank => {
+                const item = document.createElement('div');
+                let statusClass = '';
+                let statusIcon = '';
+                
+                if (currentLevel >= rank.level) {
+                    statusClass = 'unlocked';
+                    statusIcon = '✅';
+                } else {
+                    statusClass = 'locked';
+                    statusIcon = '🔒';
+                }
+
+                // 現在の称号をハイライト
+                if (rank.name === currentTitleName) {
+                    statusClass = 'unlocked current';
+                    statusIcon = '🌟';
+                }
+
+                item.className = `title-item ${statusClass}`;
+                item.innerHTML = `
+                    <div class="title-level">Lv. ${rank.level}</div>
+                    <div class="title-name">${rank.name}</div>
+                    <div class="title-status">${statusIcon}</div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        // === 2. リセット機能 ===
+        function resetProgress() {
+            if(confirm("【確認】レベルと経験値のみを初期化し「Lv.1」に戻しますか？\n※ストックした単語や「覚えた」状態は消えません。")) {
+                userData.level = 1;
+                userData.exp = 0;
+                userData.maxExp = 100;
+                saveData();
+                updateHomeStatus();
+                alert("進行状況をリセットしました！");
+            }
+        }
+
+        function resetAllData() {
+            if(confirm("【警告】ストックした単語リストを含め、全てのデータを完全に消去しますか？\nこの操作は取り消せません。")) {
+                localStorage.removeItem(STORAGE_KEY);
+                // データを初期状態に戻す
+                userData = { level: 1, exp: 0, maxExp: 100, collocations: JSON.parse(JSON.stringify(initialCollocations)) };
+                saveData();
+                updateHomeStatus();
+                renderList(); // リストもリセット
+                alert("全てのデータを初期化しました。");
+            }
+        }
+
+        // === 3. 未登録単語のコロケーション自動提案 ===
+        async function suggestCollocations() {
+            const word = document.getElementById('search-suggest-input').value.trim().toLowerCase();
+            const resultsContainer = document.getElementById('suggest-results');
+            if(!word) return;
+            
+            resultsContainer.innerHTML = '<span style="color:#94A3B8; font-size:12px;">探索中...</span>';
+
+            const curatedDB = {
+                "coffee": ["have a cup of coffee", "drink strong coffee", "brew some coffee", "black coffee"],
+                "idea": ["come up with an idea", "hit on a good idea", "brilliant idea", "reject the idea"],
+                "decision": ["make a quick decision", "reach a final decision", "tough decision", "reverse a decision"],
+                "effort": ["make an effort", "require a lot of effort", "put effort into", "vain effort"],
+                "advice": ["give some advice", "follow my advice", "ask for advice", "piece of advice"],
+                "attention": ["pay attention to", "draw one's attention", "catch the attention", "close attention"]
+            };
+
+            let suggestions = [];
+
+            if (curatedDB[word]) {
+                suggestions = curatedDB[word];
+            } else {
+                try {
+                    const [resAdj, resBefore, resAfter] = await Promise.all([
+                        fetch(`https://api.datamuse.com/words?rel_jja=${word}&max=10`),
+                        fetch(`https://api.datamuse.com/words?rel_bga=${word}&max=15`),
+                        fetch(`https://api.datamuse.com/words?rel_bgb=${word}&max=15`)
+                    ]);
+                    const [dataAdj, dataBefore, dataAfter] = await Promise.all([resAdj.json(), resBefore.json(), resAfter.json()]);
+
+                    const stopWords = ['a','an','the','my','your','his','her','their','our','this','that','some','any','no','is','are','was','were','be','been','to','of','in','on','at','by','for','with'];
+                    const filterWords = (data) => data.map(item => item.word).filter(w => !stopWords.includes(w) && w.length > 2);
+
+                    const adjs = filterWords(dataAdj);
+                    const befores = filterWords(dataBefore);
+                    const afters = filterWords(dataAfter);
+
+                    adjs.slice(0, 2).forEach(adj => suggestions.push(`${adj} ${word}`));
+                    befores.filter(w => !adjs.includes(w)).slice(0, 2).forEach(b => suggestions.push(`${b} ${word}`));
+                    afters.slice(0, 2).forEach(a => suggestions.push(`${word} ${a}`));
+                    
+                    if (befores.length > 0 && adjs.length > 0) suggestions.push(`${befores[0]} ${adjs[0]} ${word}`);
+
+                    suggestions = [...new Set(suggestions)].slice(0, 5);
+                } catch (e) {
+                    resultsContainer.innerHTML = '<span style="color:#F43F5E; font-size:12px;">通信エラーが発生しました</span>';
+                    return;
+                }
+            }
+
+            if(suggestions.length === 0) {
+                resultsContainer.innerHTML = '<span style="color:#94A3B8; font-size:12px;">候補が見つかりませんでした</span>';
+                return;
+            }
+
+            resultsContainer.innerHTML = '';
+            suggestions.forEach(phrase => {
+                const chip = document.createElement('div');
+                chip.className = 'suggest-chip';
+                chip.innerText = phrase;
+                chip.onclick = () => {
+                    document.getElementById('input-en').value = phrase;
+                    document.getElementById('input-ja').focus(); 
+                };
+                resultsContainer.appendChild(chip);
+            });
+        }
+
+        // === 4. ストック登録・図鑑機能 ===
+        function saveCollocation() {
+            const enInput = document.getElementById('input-en').value.trim();
+            const jaInput = document.getElementById('input-ja').value.trim();
+            if (!enInput || !jaInput) { alert('英語と日本語を入力してください。'); return; }
+
+            const enArray = enInput.split(' ').filter(word => word !== '');
+            const commonDummies = ["do", "have", "take", "get", "the", "a", "to", "in", "on", "put", "make", "be", "with", "of", "for"];
+            const randomDummies = commonDummies.sort(() => 0.5 - Math.random()).slice(0, 5);
+
+            userData.collocations.push({ id: Date.now(), english: enArray, japanese: jaInput, dummies: randomDummies, category: "My Stock", memorized: false });
+            gainExp(10);
+            
+            document.getElementById('input-en').value = '';
+            document.getElementById('input-ja').value = '';
+            const msg = document.getElementById('save-message');
+            msg.style.display = 'block'; setTimeout(() => { msg.style.display = 'none'; }, 2000);
+        }
+
+        function renderList() {
+            const listContainer = document.getElementById('collocation-list');
+            listContainer.innerHTML = ''; 
+            
+            const filterText = document.getElementById('filter-list-input').value.toLowerCase();
+            const filteredData = userData.collocations.filter(item => {
+                const enStr = item.english.join(' ').toLowerCase();
+                const jaStr = item.japanese.toLowerCase();
+                return enStr.includes(filterText) || jaStr.includes(filterText);
+            });
+
+            const sortedList = [...filteredData].sort((a, b) => {
+                const isMemoA = a.memorized || false;
+                const isMemoB = b.memorized || false;
+                if (isMemoA !== isMemoB) return isMemoA ? 1 : -1; 
+                return b.id - a.id; 
+            });
+
+            sortedList.forEach(item => {
+                const isMemo = item.memorized || false;
+                const card = document.createElement('div');
+                card.className = `list-card ${isMemo ? 'is-memorized' : ''}`;
+                card.innerHTML = `
+                    <div class="card-header">
+                        <div class="list-en">${item.english.join(' ')}</div>
+                        <button class="btn-memorize ${isMemo ? 'active' : ''}" onclick="toggleMemorize(${item.id})">
+                            ${isMemo ? '✓ 覚えた' : '覚えた？'}
+                        </button>
+                    </div>
+                    <div class="list-ja">${item.japanese}</div>
+                `;
+                listContainer.appendChild(card);
+            });
+        }
+
+        function toggleMemorize(itemId) {
+            const item = userData.collocations.find(c => c.id === itemId);
+            if (item) { item.memorized = !item.memorized; saveData(); renderList(); }
+        }
+
+        // === 5. レベルアップ・バトル機能 ===
+        function gainExp(amount) {
+            userData.exp += amount;
+            let leveledUp = false;
+            let oldTitle = getCurrentTitle(userData.level);
+            while(userData.exp >= userData.maxExp) {
+                userData.level++;
+                userData.exp -= userData.maxExp;
+                userData.maxExp = Math.floor(userData.maxExp * 1.5) + (userData.level * 50);
+                leveledUp = true;
+            }
+            saveData(); updateHomeStatus();
+            if (leveledUp) { showLevelUpModal(userData.level, getCurrentTitle(userData.level), oldTitle !== getCurrentTitle(userData.level)); }
+        }
+
+        function showLevelUpModal(newLevel, newTitle, isTitleUpgraded) {
+            document.getElementById('modal-level-text').innerText = newLevel;
+            const titleEl = document.getElementById('modal-title-text');
+            if (isTitleUpgraded) titleEl.innerHTML = `🌟 新称号獲得: <br><span style="color:var(--accent-gold); font-size:22px;">${newTitle}</span>`;
+            else titleEl.innerText = `現在の称号: ${newTitle}`;
+            document.getElementById('modal-overlay').style.display = 'block'; document.getElementById('level-up-modal').style.display = 'block';
+        }
+
+        function closeLevelUpModal() { document.getElementById('modal-overlay').style.display = 'none'; document.getElementById('level-up-modal').style.display = 'none'; }
+
+        let currentTestItem = null; let currentAnswerIndices = []; let shuffledOptions = [];
+        
+        function startTest() {
+            let targetList = userData.collocations.filter(item => !item.memorized);
+            if (targetList.length === 0) targetList = userData.collocations;
+            if (targetList.length === 0) { document.getElementById('test-container').style.display = 'none'; document.getElementById('test-empty-msg').style.display = 'block'; return; }
+            
+            document.getElementById('test-container').style.display = 'block'; document.getElementById('test-empty-msg').style.display = 'none';
+            currentTestItem = targetList[Math.floor(Math.random() * targetList.length)];
+            currentAnswerIndices = []; document.getElementById('test-feedback-msg').innerHTML = ''; document.getElementById('test-next-btn').style.display = 'none';
+            
+            shuffledOptions = [...currentTestItem.english, ...currentTestItem.dummies].sort(() => 0.5 - Math.random());
+            renderTestUI();
+        }
+
+        function renderTestUI() {
+            document.getElementById('test-question-text').innerText = currentTestItem.japanese;
+            const slotsContainer = document.getElementById('test-slots'); slotsContainer.innerHTML = '';
+            for (let i = 0; i < currentTestItem.english.length; i++) {
+                const slot = document.createElement('div'); slot.className = 'slot';
+                if (i < currentAnswerIndices.length) { slot.innerText = shuffledOptions[currentAnswerIndices[i]]; slot.onclick = () => removeWord(i); }
+                slotsContainer.appendChild(slot);
+            }
+            const optionsContainer = document.getElementById('test-options'); optionsContainer.innerHTML = '';
+            shuffledOptions.forEach((word, index) => {
+                const panel = document.createElement('div'); panel.className = 'word-panel';
+                if (currentAnswerIndices.includes(index)) panel.classList.add('hidden');
+                else { panel.innerText = word; panel.onclick = () => selectWord(index); }
+                optionsContainer.appendChild(panel);
+            });
+        }
+
+        function selectWord(index) {
+            if (currentAnswerIndices.length < currentTestItem.english.length) {
+                currentAnswerIndices.push(index); renderTestUI();
+                if (currentAnswerIndices.length === currentTestItem.english.length) checkAnswer();
+            }
+        }
+
+        function removeWord(slotIndex) {
+            if (document.getElementById('test-next-btn').style.display === 'block') return;
+            currentAnswerIndices.splice(slotIndex, 1); renderTestUI();
+        }
+
+        function checkAnswer() {
+            const userAnswer = currentAnswerIndices.map(idx => shuffledOptions[idx]).join(' ');
+            const correctAnswer = currentTestItem.english.join(' ');
+            const feedbackEl = document.getElementById('test-feedback-msg');
+            if (userAnswer === correctAnswer) { feedbackEl.innerHTML = '<span class="feedback-correct">✨ 正解！ (+50 EXP)</span>'; gainExp(50); }
+            else { feedbackEl.innerHTML = `<span class="feedback-incorrect">❌ 残念！</span><br><span style="font-size:14px; color:#94A3B8;">正解: ${correctAnswer}</span>`; }
+            document.getElementById('test-next-btn').style.display = 'block';
+        }
+
+        // === 6. 画面切り替え ===
+        function changeScreen(screenId, btnElement) {
+            document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
+            document.getElementById('screen-' + screenId).classList.add('active');
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            btnElement.classList.add('active');
+            
+            if (screenId === 'list') {
+                document.getElementById('filter-list-input').value = ''; 
+                renderList();
+            }
+            if (screenId === 'test') startTest(); 
+        }
+
+        // アプリ起動
+        initApp();
+    </script>
+</body>
+</html>
